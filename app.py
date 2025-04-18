@@ -3,46 +3,41 @@ import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import SerperDevTool
 
-# --- UI Inputs ---
+# Set static API keys
+os.environ["GPT_API_KEY"] = "AIzaSyA78loTXEYfy4SAiEFi7rRG8vy0gHRSFuM"
+os.environ["SERPER_API_KEY"] = "e77b760ad536892826a6a56e13eeb94eb7dc8495"
+
+# --- Streamlit UI Setup ---
 st.set_page_config(page_title="🧳 AI Trip Planner", layout="centered")
+st.title("🧳 AI-Powered Trip Planner")
+st.markdown("Plan a 1-day historical trip with real-time data and a budget!")
 
-st.title("🧳 AI-Powered Trip Planner with CrewAI")
-st.markdown("Get a personalized, budget-friendly itinerary with real-time travel info!")
+# --- Manual User Inputs ---
+destination = st.text_input("🌍 Enter your destination:", placeholder="e.g., Hyderabad")
+budget = st.number_input("💸 Enter your budget (INR):", min_value=1000, max_value=50000, value=5000, step=500)
 
-# User Inputs
-destination = st.text_input("Enter your destination:", "Hyderabad")
-budget = st.number_input("Enter your budget (INR):", min_value=100, max_value=100000, value=5000, step=100)
+run = st.button("🚀 Plan My Trip")
 
-# API Keys
-gpt_key = st.text_input("Enter your GPT API Key", type="password")
-serper_key = st.text_input("Enter your Serper API Key", type="password")
-
-# Run Button
-run_trip_planner = st.button("🧭 Plan My Trip")
-
-if run_trip_planner:
-    if not gpt_key or not serper_key:
-        st.warning("Please provide both GPT and Serper API keys.")
+if run:
+    if not destination.strip():
+        st.warning("Please enter a destination.")
     else:
-        os.environ["GPT_API_KEY"] = gpt_key
-        os.environ["SERPER_API_KEY"] = serper_key
-
-        # Initialize LLM & Tool
+        # Initialize tools
         search_tool = SerperDevTool()
         llm = LLM(
-            model="gpt-4",  # Or gemini/gemini-1.5-flash
+            model="gemini/gemini-1.5-flash"
             verbose=True,
             temperature=0.5,
-            api_key=gpt_key
+            api_key=os.environ["GPT_API_KEY"]
         )
 
-        # Define Agents
+        # Agents
         researcher = Agent(
             role="Travel Researcher",
-            goal=f"Find historical sites, public transport, hotels, and real-time weather for {destination}.",
+            goal=f"Find historical sites, transport, hotels, and weather for {destination}.",
             verbose=True,
             memory=True,
-            backstory="You are an expert travel researcher, providing up-to-date information about history-focused trips.",
+            backstory="Expert in historic destinations and weather updates.",
             llm=llm,
             tools=[search_tool],
             allow_delegation=True
@@ -50,10 +45,10 @@ if run_trip_planner:
 
         budget_planner = Agent(
             role="Budget Planner",
-            goal=f"Find budget buses, cabs, and activities within {budget} for {destination}.",
+            goal=f"Suggest cheap transport and attractions under ₹{budget} for {destination}.",
             verbose=True,
             memory=True,
-            backstory="You are a skilled budget analyst ensuring trips fit within financial constraints.",
+            backstory="Keeps the trip within budget.",
             llm=llm,
             tools=[search_tool],
             allow_delegation=True
@@ -61,10 +56,10 @@ if run_trip_planner:
 
         itinerary_planner = Agent(
             role="Itinerary Planner",
-            goal=f"Create a 1-day itinerary for {destination}, ensuring all historical sites are covered under {budget}.",
+            goal=f"Plan a 1-day trip in {destination} with historical sites and budget ₹{budget}.",
             verbose=True,
             memory=True,
-            backstory="You are an expert in trip planning, ensuring travelers get the best experience within their budget.",
+            backstory="Creates practical and interesting itineraries.",
             llm=llm,
             tools=[search_tool],
             allow_delegation=False
@@ -72,37 +67,36 @@ if run_trip_planner:
 
         # Tasks
         research_task = Task(
-            description=f"Find the best historical sites, weather forecast, and public transport for {destination}.",
-            expected_output="A list of top historical sites, a real-time weather update.",
+            description=f"Find historical sites, weather, and public transport for {destination}.",
+            expected_output="Top historical sites, weather forecast, and transport options.",
             tools=[search_tool],
             agent=researcher
         )
 
         budget_task = Task(
-            description=f"Find budget buses, cabs and food/transport costs for {destination}. Ensure total cost stays under {budget}.",
-            expected_output="A full cost breakdown (buses, cabs, food, attractions) ensuring the budget is maintained.",
+            description=f"List cheap travel, food, and activity costs in {destination} under ₹{budget}.",
+            expected_output="Budget breakdown for travel, food, and entry tickets.",
             tools=[search_tool],
             agent=budget_planner
         )
 
         itinerary_task = Task(
-            description=f"Plan a 1-day itinerary for {destination}, focusing on historical sites, budget constraints, and real-time weather conditions.",
-            expected_output="A detailed 1-day plan, considering weather and budget constraints, with transport recommendations.",
+            description=f"Create a 1-day itinerary in {destination} with weather, budget, and site visits.",
+            expected_output="Detailed 1-day itinerary with estimated costs.",
             tools=[search_tool],
             agent=itinerary_planner
         )
 
-        # Run the Crew
+        # Crew
         crew = Crew(
             agents=[researcher, budget_planner, itinerary_planner],
             tasks=[research_task, budget_task, itinerary_task],
             process=Process.sequential
         )
 
-        with st.spinner("Planning your trip..."):
+        with st.spinner("⏳ Planning your trip..."):
             result = crew.kickoff(inputs={"destination": destination, "budget": str(budget)})
-        
-        # Show Result
+
         st.success("🎉 Trip Plan Ready!")
-        st.markdown("### 🗓️ Your 1-Day Itinerary")
+        st.markdown("### 📋 Your Itinerary")
         st.write(result)
