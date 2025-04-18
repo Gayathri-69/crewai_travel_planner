@@ -25,7 +25,7 @@ if run:
         # Initialize tools
         search_tool = SerperDevTool()
         llm = LLM(
-            model="gemini/gemini-1.5-flash"
+            model="gemini/gemini-1.5-flash",
             verbose=True,
             temperature=0.5,
             api_key=os.environ["GPT_API_KEY"]
